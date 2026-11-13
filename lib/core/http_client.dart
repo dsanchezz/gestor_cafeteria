@@ -56,7 +56,7 @@ class ApiClient {
     final json = _tryDecode(response);
     final code = response.statusCode;
     if (code >= 200 && code <= 300) return json;
-    throw const NetworkFailure();
+    throw mapHttpError(code, json);
   }
 
   dynamic _tryDecode(http.Response response) {
@@ -67,5 +67,45 @@ class ApiClient {
     } on FormatException {
       return null;
     }
+  }
+
+  // Traduce el código HTTP y el cuerpo de la respuesta al Failure que corresponde
+  Failure mapHttpError(int code, Object? json) {
+    return switch (code) {
+      404 => NotFoundFailure(_detailFrom(json) ?? 'Orden no encontrada'),
+      409 => ConflictFailure(_detailFrom(json) ?? 'Acción no permitida'),
+      422 => ValidationFailure(_fieldsFrom(json)),
+      >= 500 && < 600 => ServerFailure(code),
+      _ => UnexpectedFailure(
+        code,
+        _detailFrom(json) ?? 'Error desconocido ($code)',
+      ),
+    };
+  }
+
+  // En 404, 409 y errores simulados "detail" es un texto; en 422 es una lista.
+  // Devuelve el texto o null si no existe o no es texto.
+  String? _detailFrom(Object? json) {
+    if (json is Map && json['detail'] is String) {
+      final detail = json['detail'] as String;
+      if (detail.isNotEmpty) return detail;
+    }
+    return null;
+  }
+
+  // 422: por cada elemento de detail, la clave es loc[1] y el valor es msg
+  Map<String, String> _fieldsFrom(Object? json) {
+    final fields = <String, String>{};
+    if (json is Map && json['detail'] is List) {
+      for (final error in json['detail'] as List) {
+        if (error is Map && error['loc'] is List && error['msg'] is String) {
+          final loc = error['loc'] as List;
+          if (loc.length > 1 && loc[1] is String) {
+            fields[loc[1] as String] = error['msg'] as String;
+          }
+        }
+      }
+    }
+    return fields;
   }
 }
