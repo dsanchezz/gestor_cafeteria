@@ -56,7 +56,7 @@ class ApiClient {
     final json = _tryDecode(response);
     final code = response.statusCode;
     if (code >= 200 && code <= 300) return json;
-    throw const NetworkFailure();
+    throw mapHttpError(code, json);
   }
 
   dynamic _tryDecode(http.Response response) {
@@ -67,5 +67,16 @@ class ApiClient {
     } on FormatException {
       return null;
     }
+  }
+
+  // Traduce el código HTTP al Failure que corresponde
+  Failure mapHttpError(int code, Object? json) {
+    return switch (code) {
+      404 => const NotFoundFailure('Orden no encontrada'),
+      409 => const ConflictFailure('Acción no permitida'),
+      422 => ValidationFailure(const {}),
+      >= 500 && < 600 => ServerFailure(code),
+      _ => UnexpectedFailure(code, 'Error desconocido ($code)'),
+    };
   }
 }
