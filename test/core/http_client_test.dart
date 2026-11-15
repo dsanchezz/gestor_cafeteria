@@ -94,6 +94,21 @@ void main() {
       );
     });
 
+    test('300 no es éxito y lanza UnexpectedFailure', () async {
+      final api = clienteQueResponde(300);
+
+      await expectLater(
+        api.get('/orders'),
+        throwsA(
+          isA<UnexpectedFailure>().having(
+            (f) => f.statusCode,
+            'statusCode',
+            300,
+          ),
+        ),
+      );
+    });
+
     test('un 404 sin JSON usa el mensaje genérico', () async {
       final api = ApiClient(
         client: MockClient((request) async => http.Response('<html>', 404)),
